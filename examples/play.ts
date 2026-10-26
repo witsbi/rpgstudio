@@ -22,6 +22,8 @@ if (!saved) store.createSession(session);
 const muse = new MetaMuseClient(process.env.META_API_KEY ?? "", process.env.META_API_BASE, process.env.META_MODEL);
 const rl = createInterface({ input, output });
 console.log("The Stranger's Secret — type /quit to exit, /history for turns");
+console.log("Session ID:", session.id);
+console.log("Resume with: node --experimental-strip-types examples/play.ts " + session.id);
 try {
   while (true) {
     const action = (await rl.question("> ")).trim();
