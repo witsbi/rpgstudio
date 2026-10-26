@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "PlaythroughEvent",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "id",
+    "playthroughId",
+    "sequence",
+    "actorId",
+    "action",
+    "outcome"
+  ],
+  "properties": {
+    "id": {
+      "type": "string"
+    },
+    "playthroughId": {
+      "type": "string"
+    },
+    "sequence": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "actorId": {
+      "type": "string"
+    },
+    "action": {
+      "type": "string"
+    },
+    "outcome": {
+      "type": "string"
+    }
+  }
+}
