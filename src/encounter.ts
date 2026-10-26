@@ -6,12 +6,18 @@ export async function playTurn(engine: Engine, muse: MuseClient, sessionId: stri
   const context = engine.getContext(sessionId);
   if (actorId !== context.session.roles.player) throw new Error("Actor is not the assigned player");
   if (!playerAction.trim() || playerAction.length > 2000) throw new Error("Invalid player action");
-  const dm = await muse.respond({ location: context.location, unlockedDoors: context.session.unlockedDoors, playerAction });
-  if (!dm.proposedAction) return { narration: dm.narration, event: null, rejectedProposal: false };
-  try {
-    const event = engine.applyAction(sessionId, actorId, dm.proposedAction);
-    return { narration: dm.narration, event, rejectedProposal: false };
-  } catch {
-    return { narration: "The attempted action cannot be completed in the current world state. Try something else.", event: null, rejectedProposal: true };
+  const history = engine.getTurns(sessionId).map(t => ({ playerAction: t.playerAction, narration: t.narration, rejectedProposal: t.rejectedProposal }));
+  const dm = await muse.respond({ location: context.location, unlockedDoors: context.session.unlockedDoors, playerAction, history });
+  let result: EncounterResult;
+  if (!dm.proposedAction) result = { narration: dm.narration, event: null, rejectedProposal: false };
+  else {
+    try {
+      const event = engine.applyAction(sessionId, actorId, dm.proposedAction);
+      result = { narration: dm.narration, event, rejectedProposal: false };
+    } catch {
+      result = { narration: "The attempted action cannot be completed in the current world state. Try something else.", event: null, rejectedProposal: true };
+    }
   }
+  engine.recordTurn(sessionId, actorId, playerAction, result.narration, result.event, result.rejectedProposal);
+  return result;
 }

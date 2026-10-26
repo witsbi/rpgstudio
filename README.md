@@ -56,3 +56,13 @@ META_API_KEY=your_key node --experimental-strip-types examples/first-encounter.t
 ```
 
 The sample performs **one** turn and prints state and history. API calls require valid Meta credentials and access. This is not yet a persistent multi-turn game or HTTP server. The in-memory unlock mechanic is still a placeholder without door precondition checks; do not mistake it for completed world rules.
+
+## Interactive multi-turn encounter (PR #3)
+
+Set `META_API_KEY` in your environment, then run:
+
+```bash
+node --experimental-strip-types examples/play.ts
+```
+
+Enter free-text actions, `/history` to inspect the playthrough's turn records, and `/quit` to exit. Every successful Muse response is recorded as a turn, even when no world state changes. Prior turns and current state are sent back to Muse for continuity. Session histories remain isolated. The ledger is currently **in-memory only**, and disappears when the process exits; persistence and full event-ledger unification are follow-up work. Tests use mocked Muse responses.

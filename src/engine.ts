@@ -5,10 +5,13 @@ export type Adventure = { id: string; version: string; title: string; startLocat
 export type Playthrough = { id: string; adventureId: string; adventureVersion: string; roles: { player: string; dm: string }; currentLocationId: string; unlockedDoors: string[] };
 export type GameEvent = { id: string; playthroughId: string; sequence: number; actorId: string; action: string; outcome: string };
 
+export type TurnRecord = { id: string; playthroughId: string; sequence: number; actorId: string; playerAction: string; narration: string; event: GameEvent | null; rejectedProposal: boolean };
+
 export class Engine {
   private adventures = new Map<string, Adventure>();
   private sessions = new Map<string, Playthrough>();
   private events = new Map<string, GameEvent[]>();
+  private turns = new Map<string, TurnRecord[]>();
 
   createAdventure(adventure: Adventure): void {
     if (!adventure.id || !adventure.version || !adventure.locations.length) throw new Error("Invalid adventure");
@@ -27,6 +30,7 @@ export class Engine {
     const session: Playthrough = { id: randomUUID(), adventureId, adventureVersion: version, roles: { ...roles }, currentLocationId: adventure.startLocationId, unlockedDoors: [] };
     this.sessions.set(session.id, session);
     this.events.set(session.id, []);
+    this.turns.set(session.id, []);
     return structuredClone(session);
   }
 
@@ -59,6 +63,20 @@ export class Engine {
   getHistory(sessionId: string): GameEvent[] {
     this.requireSession(sessionId);
     return structuredClone(this.events.get(sessionId)!);
+  }
+
+  recordTurn(sessionId: string, actorId: string, playerAction: string, narration: string, event: GameEvent | null, rejectedProposal: boolean): TurnRecord {
+    const session = this.requireSession(sessionId);
+    if (session.roles.player !== actorId) throw new Error("Only the assigned player may record turns");
+    const history = this.turns.get(sessionId)!;
+    const record: TurnRecord = { id: randomUUID(), playthroughId: sessionId, sequence: history.length + 1, actorId, playerAction, narration, event: event ? structuredClone(event) : null, rejectedProposal };
+    history.push(record);
+    return structuredClone(record);
+  }
+
+  getTurns(sessionId: string): TurnRecord[] {
+    this.requireSession(sessionId);
+    return structuredClone(this.turns.get(sessionId)!);
   }
 
   private requireSession(id: string): Playthrough {
