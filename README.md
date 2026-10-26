@@ -66,3 +66,17 @@ node --experimental-strip-types examples/play.ts
 ```
 
 Enter free-text actions, `/history` to inspect the playthrough's turn records, and `/quit` to exit. Every successful Muse response is recorded as a turn, even when no world state changes. Prior turns and current state are sent back to Muse for continuity. Session histories remain isolated. The ledger is currently **in-memory only**, and disappears when the process exits; persistence and full event-ledger unification are follow-up work. Tests use mocked Muse responses.
+
+## Durable playthroughs (PR #4)
+
+The interactive example stores versioned adventures, sessions, turn history, and state-change events in SQLite (`data/rpgstudio.sqlite` by default). The first run prints a session ID:
+
+```bash
+node --experimental-strip-types examples/play.ts
+# Copy the printed Session ID, then /quit
+node --experimental-strip-types examples/play.ts YOUR_SESSION_ID
+```
+
+Use `RPG_DB_PATH` to override the database file. SQLite uses WAL, foreign keys, and a versioned schema. State and append-only history commit in one database transaction **after** the Muse response. The database is never locked during the network request.
+
+This is a local single-process prototype, not a concurrency-safe hosted session service. A database write error stops the CLI to avoid continuing from unsaved in-memory state. Cross-process optimistic locking, unified event-ledger semantics, and durable turn intent before external model calls are future work.

@@ -79,6 +79,19 @@ export class Engine {
     return structuredClone(this.turns.get(sessionId)!);
   }
 
+  restorePlaythrough(session: Playthrough, events: GameEvent[], turns: TurnRecord[]): void {
+    const adventure = this.adventures.get(`${session.adventureId}@${session.adventureVersion}`);
+    if (!adventure) throw new Error("Adventure version must be loaded before session");
+    if (!adventure.locations.some(l => l.id === session.currentLocationId)) throw new Error("Invalid saved location");
+    if (!session.roles.player || !session.roles.dm || session.roles.player === session.roles.dm) throw new Error("Invalid saved roles");
+    if (this.sessions.has(session.id)) throw new Error("Playthrough already loaded");
+    if (events.some((e, i) => e.playthroughId !== session.id || e.sequence !== i + 1)) throw new Error("Invalid saved events");
+    if (turns.some((t, i) => t.playthroughId !== session.id || t.sequence !== i + 1)) throw new Error("Invalid saved turns");
+    this.sessions.set(session.id, structuredClone(session));
+    this.events.set(session.id, structuredClone(events));
+    this.turns.set(session.id, structuredClone(turns));
+  }
+
   private requireSession(id: string): Playthrough {
     const session = this.sessions.get(id);
     if (!session) throw new Error("Unknown playthrough");
