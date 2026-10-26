@@ -1,5 +1,5 @@
-import { Engine, type GameEvent } from "./engine.js";
-import type { MuseClient } from "./muse.js";
+import { Engine, type GameEvent } from "./engine.ts";
+import type { MuseClient } from "./muse.ts";
 
 export type EncounterResult = { narration: string; event: GameEvent | null; rejectedProposal: boolean };
 export async function playTurn(engine: Engine, muse: MuseClient, sessionId: string, actorId: string, playerAction: string): Promise<EncounterResult> {
