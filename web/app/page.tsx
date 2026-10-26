@@ -1,6 +1,6 @@
 const roles = [
-  { name: "Creator", icon: "✦", description: "Build a world together with AI.", status: "Coming in PR #5", href: "#journey" },
-  { name: "Player", icon: "⚔", description: "Enter a world with an AI or human DM.", status: "Engine ready · UI next", href: "#journey" },
+  { name: "Creator", icon: "✦", description: "Build a world together with AI.", status: "Create with AI", href: "/creator" },
+  { name: "Player", icon: "⚔", description: "Enter a world with an AI or human DM.", status: "Play experience next", href: "#journey" },
   { name: "Dungeon Master", icon: "◈", description: "Guide a human or AI player through an adventure.", status: "Planned next", href: "#journey" }
 ];
 export default function Home() {
@@ -12,11 +12,11 @@ export default function Home() {
       <p className="lead">Build adventures with AI, publish them to the Marketplace, and return as a Player or Dungeon Master. One world. Many adventures.</p>
     </section>
     <section className="roles" aria-label="Choose a role">{roles.map(role =>
-      <a className="role" key={role.name} href={role.href} aria-label={role.name + " — preview development roadmap"}>
+      <a className="role" key={role.name} href={role.href} aria-label={role.name}>
         <span className="role-icon" aria-hidden="true">{role.icon}</span>
         <h2>{role.name}</h2><p>{role.description}</p><small>{role.status}</small>
       </a>)}</section>
-    <section className="market" id="journey"><div><p className="eyebrow">THE SHARED ADVENTURE MARKETPLACE</p><h2>Make a world once. Adventure in it again and again.</h2><p>Creator → Marketplace → Player or DM. The Marketplace is the bridge between creating a world and playing in it. Publishing and browsing are the next implementation steps.</p></div><div className="world-card"><div className="world-icon">◎</div><strong>One versioned world</strong><p>↙ Human Player · AI DM</p><p>↘ Human DM · AI Player</p><small>Separate playthroughs · shared adventure definition</small></div></section>
+    <section className="market" id="journey"><div><p className="eyebrow">THE SHARED ADVENTURE MARKETPLACE</p><h2>Make a world once. Adventure in it again and again.</h2><p>Creator → Marketplace → Player or DM. The Marketplace is the bridge between creating a world and playing in it. Publish your world, then discover it again in the Marketplace.</p></div><div className="world-card"><a href="/marketplace" className="market-link">Explore Marketplace →</a><div className="world-icon">◎</div><strong>One versioned world</strong><p>↙ Human Player · AI DM</p><p>↘ Human DM · AI Player</p><small>Separate playthroughs · shared adventure definition</small></div></section>
     <footer>RPG Studio. Create the world. Save it to the Marketplace. Choose your role. Let the adventures unfold.</footer>
   </main>;
 }
