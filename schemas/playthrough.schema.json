@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Playthrough",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "id",
+    "adventureId",
+    "adventureVersion",
+    "roles",
+    "currentLocationId",
+    "unlockedDoors"
+  ],
+  "properties": {
+    "id": {
+      "type": "string"
+    },
+    "adventureId": {
+      "type": "string"
+    },
+    "adventureVersion": {
+      "type": "string"
+    },
+    "roles": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "player",
+        "dm"
+      ],
+      "properties": {
+        "player": {
+          "type": "string"
+        },
+        "dm": {
+          "type": "string"
+        }
+      }
+    },
+    "currentLocationId": {
+      "type": "string"
+    },
+    "unlockedDoors": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  }
+}
