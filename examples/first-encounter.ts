@@ -1,6 +1,6 @@
-import { Engine } from "../src/engine.js";
-import { MetaMuseClient } from "../src/muse.js";
-import { playTurn } from "../src/encounter.js";
+import { Engine } from "../src/engine.ts";
+import { MetaMuseClient } from "../src/muse.ts";
+import { playTurn } from "../src/encounter.ts";
 
 const engine = new Engine();
 engine.createAdventure({ id: "first-encounter", version: "1", title: "The Stranger's Secret", startLocationId: "chamber", locations: [
