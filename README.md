@@ -41,3 +41,18 @@ npm run typecheck
 ## Project status
 
 Hackathon Day 1 foundation. Public development; contributions and design feedback welcome.
+
+## Muse-powered first encounter (PR #2)
+
+RPG Studio uses Meta's OpenAI-compatible Muse API at `https://api.meta.ai/v1` with model `muse-spark-1.3`. The adapter calls `/chat/completions` using a bearer token. The model narrates and proposes an action; the engine validates and commits any state change.
+
+Set `META_API_KEY` in your shell (see `.env.example`; never commit credentials). Optional: `META_API_BASE` and `META_MODEL`.
+
+```bash
+npm install
+npm test
+npm run typecheck
+META_API_KEY=your_key node --experimental-strip-types examples/first-encounter.ts "I question the stranger"
+```
+
+The sample performs **one** turn and prints state and history. API calls require valid Meta credentials and access. This is not yet a persistent multi-turn game or HTTP server. The in-memory unlock mechanic is still a placeholder without door precondition checks; do not mistake it for completed world rules.
