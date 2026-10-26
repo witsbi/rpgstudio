@@ -1,6 +1,6 @@
 export type Proposal = { type: "unlock"; doorId: string } | { type: "move"; locationId: string };
 export type DmTurn = { narration: string; proposedAction: Proposal | null };
-export type MuseClient = { respond(input: { location: { id: string; name: string; description: string; exits: string[] }; unlockedDoors: string[]; playerAction: string }): Promise<DmTurn> };
+export type MuseClient = { respond(input: { history?: { playerAction: string; narration: string; rejectedProposal: boolean }[]; location: { id: string; name: string; description: string; exits: string[] }; unlockedDoors: string[]; playerAction: string }): Promise<DmTurn> };
 
 export class MetaMuseClient implements MuseClient {
   private readonly apiKey: string;
