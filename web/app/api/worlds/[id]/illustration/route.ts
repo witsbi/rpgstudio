@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { SqlitePlaythroughStore } from "../../../../../src/storage.ts";
-import { databasePath } from "../../../../lib/studio";
+import { SqlitePlaythroughStore } from "../../../../../../src/storage.ts";
+import { databasePath } from "../../../../../lib/studio";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 export const runtime = "nodejs";
