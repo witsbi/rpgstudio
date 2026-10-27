@@ -7,7 +7,7 @@ import { SqlitePlaythroughStore } from "../../src/storage.ts";
 import { databasePath } from "./studio";
 import { readGame } from "./play";
 import { checkForAction } from "../../src/action-check.ts";
-import { ordinaryExitMove } from "../../src/ordinary-movement.ts";
+import { parsePlayerIntent } from "../../src/intent.ts";
 
 type Pending = {id:string;action:string;stakes:string;roll:RollReceipt|null;sessionId:string;sequence:number;destinationId?:string|null};
 function dbOpen() {
@@ -40,9 +40,7 @@ export async function preparePlayerTurn(sessionId:string,action:string,destinati
   }
   const worldStore=new SqlitePlaythroughStore(databasePath());
   let ordinaryDestination:string|null=null;
-  try{const world=worldStore.getAdventure(game.session.adventureId,game.session.adventureVersion);if(world)ordinaryDestination=ordinaryExitMove(action,game.location,world.locations);}finally{worldStore.close();}
-  if(destinationId && !game.location.exits.includes(destinationId))throw Error("Destination is not a connected exit");
-  if(destinationId)ordinaryDestination=destinationId;
+  try{const world=worldStore.getAdventure(game.session.adventureId,game.session.adventureVersion);if(!world)throw Error("Adventure missing");const intent=parsePlayerIntent(action,game.location,world.locations,destinationId);if(intent.kind==="move")ordinaryDestination=intent.destinationId;}finally{worldStore.close();}
   const history=game.turns.map(t=>({playerAction:t.playerAction,narration:t.narration,rejectedProposal:t.rejectedProposal}));
   const assessment=ordinaryDestination ? {narration:"Travel to a connected location.",proposedCheck:null} : await museClient().respond({phase:"assess",location:game.location,unlockedDoors:game.session.unlockedDoors,playerAction:action,history});
   const fallback=ordinaryDestination ? null : checkForAction(action);
@@ -83,18 +81,13 @@ export async function resolvePlayerTurn(sessionId:string,pendingId:string) {
    const engine=new Engine();engine.createAdventure(world);engine.restorePlaythrough(saved.session,saved.events,saved.turns);
    const context=engine.getContext(sessionId);
    const history=saved.turns.map(t=>({playerAction:t.playerAction,narration:t.narration,rejectedProposal:t.rejectedProposal}));
-   const ordinaryDestination=pending.destinationId && context.location.exits.includes(pending.destinationId) ? pending.destinationId : ordinaryExitMove(pending.action,context.location,world.locations);
+   const intent=parsePlayerIntent(pending.action,context.location,world.locations,pending.destinationId??undefined);
+   const ordinaryDestination=intent.kind==="move" ? intent.destinationId : null;
    const dm=ordinaryDestination ? {narration:"You travel to the connected location.",proposedAction:{type:"move" as const,locationId:ordinaryDestination}} : await museClient().respond({phase:"resolve",location:context.location,unlockedDoors:context.session.unlockedDoors,playerAction:pending.action,history,verifiedRoll:pending.roll});
    let event=null;let rejected=false;let narration=dm.narration;
-   const directExit=context.location.exits.find(exit=>{
-    const destination=world.locations.find(l=>l.id===exit);
-    const text=pending.action.toLowerCase();
-    return destination && (text.includes(destination.name.toLowerCase()) || text.includes(destination.id.toLowerCase()));
-   });
-   const movementIntent=/\b(go|move|walk|travel|enter|head|proceed)\b/i.test(pending.action);
-   const proposal=ordinaryDestination ? {type:"move" as const,locationId:ordinaryDestination} : movementIntent && directExit ? {type:"move" as const,locationId:directExit} : dm.proposedAction;
+   const proposal=ordinaryDestination ? {type:"move" as const,locationId:ordinaryDestination} : dm.proposedAction;
    if(proposal) {
-    if(pending.roll?.success===false && !movementIntent) {rejected=true;narration="The check failed. "+narration;}
+    if(pending.roll?.success===false) {rejected=true;narration="The check failed. "+narration;}
     else try {event=engine.applyAction(sessionId,"human-player",proposal); }
     catch {rejected=true;narration="The engine rejected the proposed world change. "+narration;}
    }
