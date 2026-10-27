@@ -6,6 +6,7 @@ import { resolveRoll, type RollReceipt } from "../../src/dice.ts";
 import { SqlitePlaythroughStore } from "../../src/storage.ts";
 import { databasePath } from "./studio";
 import { readGame } from "./play";
+import { checkForAction } from "../../src/action-check.ts";
 
 type Pending = {id:string;action:string;stakes:string;roll:RollReceipt|null;sessionId:string;sequence:number};
 function dbOpen() {
@@ -38,7 +39,8 @@ export async function preparePlayerTurn(sessionId:string,action:string) {
   }
   const history=game.turns.map(t=>({playerAction:t.playerAction,narration:t.narration,rejectedProposal:t.rejectedProposal}));
   const assessment=await museClient().respond({phase:"assess",location:game.location,unlockedDoors:game.session.unlockedDoors,playerAction:action,history});
-  const check=assessment.proposedCheck;
+  const fallback=checkForAction(action);
+  const check=assessment.proposedCheck ?? (fallback ? {...fallback.request,reason:fallback.label} : null);
   const roll=check?resolveRoll({kind:check.kind,dc:check.dc,modifier:0,mode:check.mode??"normal"}):null;
   const pending:Pending={id:randomUUID(),sessionId,action,stakes:check?.reason || assessment.narration,roll,sequence:game.turns.length+1};
   db.prepare("INSERT OR IGNORE INTO pending_player_turns(session_id,body) VALUES(?,?)").run(sessionId,JSON.stringify(pending));
@@ -77,9 +79,16 @@ export async function resolvePlayerTurn(sessionId:string,pendingId:string) {
    const history=saved.turns.map(t=>({playerAction:t.playerAction,narration:t.narration,rejectedProposal:t.rejectedProposal}));
    const dm=await museClient().respond({phase:"resolve",location:context.location,unlockedDoors:context.session.unlockedDoors,playerAction:pending.action,history,verifiedRoll:pending.roll});
    let event=null;let rejected=false;let narration=dm.narration;
-   if(dm.proposedAction) {
-    if(pending.roll?.success===false) {rejected=true;narration="The check failed. "+narration;}
-    else try {event=engine.applyAction(sessionId,"human-player",dm.proposedAction);}
+   const directExit=context.location.exits.find(exit=>{
+    const destination=world.locations.find(l=>l.id===exit);
+    const text=pending.action.toLowerCase();
+    return destination && (text.includes(destination.name.toLowerCase()) || text.includes(destination.id.toLowerCase()));
+   });
+   const movementIntent=/\b(go|move|walk|travel|enter|head|proceed)\b/i.test(pending.action);
+   const proposal=dm.proposedAction ?? (movementIntent && directExit ? {type:"move" as const,locationId:directExit} : null);
+   if(proposal) {
+    if(pending.roll?.success===false && !movementIntent) {rejected=true;narration="The check failed. "+narration;}
+    else try {event=engine.applyAction(sessionId,"human-player",proposal); }
     catch {rejected=true;narration="The engine rejected the proposed world change. "+narration;}
    }
    const record=engine.recordTurn(sessionId,"human-player",pending.action,narration,event,rejected,pending.roll);
