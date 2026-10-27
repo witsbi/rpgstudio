@@ -1,11 +1,12 @@
 import { randomUUID } from "node:crypto";
+import type { RollReceipt } from "./dice.ts";
 
 export type Location = { id: string; name: string; description: string; position: { x: number; y: number; z?: number }; exits: string[] };
 export type Adventure = { id: string; version: string; title: string; startLocationId: string; locations: Location[] };
 export type Playthrough = { id: string; adventureId: string; adventureVersion: string; roles: { player: string; dm: string }; currentLocationId: string; unlockedDoors: string[] };
 export type GameEvent = { id: string; playthroughId: string; sequence: number; actorId: string; action: string; outcome: string };
 
-export type TurnRecord = { id: string; playthroughId: string; sequence: number; actorId: string; playerAction: string; narration: string; event: GameEvent | null; rejectedProposal: boolean };
+export type TurnRecord = { id: string; playthroughId: string; sequence: number; actorId: string; playerAction: string; narration: string; event: GameEvent | null; rejectedProposal: boolean; roll?: RollReceipt | null };
 
 export class Engine {
   private adventures = new Map<string, Adventure>();
@@ -65,11 +66,11 @@ export class Engine {
     return structuredClone(this.events.get(sessionId)!);
   }
 
-  recordTurn(sessionId: string, actorId: string, playerAction: string, narration: string, event: GameEvent | null, rejectedProposal: boolean): TurnRecord {
+  recordTurn(sessionId: string, actorId: string, playerAction: string, narration: string, event: GameEvent | null, rejectedProposal: boolean, roll: RollReceipt | null = null): TurnRecord {
     const session = this.requireSession(sessionId);
     if (session.roles.player !== actorId) throw new Error("Only the assigned player may record turns");
     const history = this.turns.get(sessionId)!;
-    const record: TurnRecord = { id: randomUUID(), playthroughId: sessionId, sequence: history.length + 1, actorId, playerAction, narration, event: event ? structuredClone(event) : null, rejectedProposal };
+    const record: TurnRecord = { id: randomUUID(), playthroughId: sessionId, sequence: history.length + 1, actorId, playerAction, narration, event: event ? structuredClone(event) : null, rejectedProposal, roll };
     history.push(record);
     return structuredClone(record);
   }
