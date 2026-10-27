@@ -52,7 +52,7 @@ export async function runSparkPlayer(input: {
           if (!destination) throw Error("Exit unavailable");
           // Prototype hazard policy: terrain explicitly described as hazardous, including stairs.
           // The human DM remains authoritative over the scene; this is not a general rules engine.
-          const hazardous = /\\b(stairs?|staircase|slippery|slick|treacherous|unstable|hazard|dangerous|crumbling|narrow ledge)\\b/i.test(
+          const hazardous = /\b(stairs?|staircase|slippery|slick|treacherous|unstable|hazard|dangerous|crumbling|narrow ledge)\b/i.test(
             [location.name, location.description, scene, destination.name].join(" ")
           );
           attempted = `I attempt to travel to ${destination.name}.`;
