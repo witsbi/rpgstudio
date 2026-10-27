@@ -7,6 +7,7 @@ import { SqlitePlaythroughStore } from "../../src/storage.ts";
 import { databasePath } from "./studio";
 import { readGame } from "./play";
 import { checkForAction } from "../../src/action-check.ts";
+import { ordinaryExitMove } from "../../src/ordinary-movement.ts";
 
 type Pending = {id:string;action:string;stakes:string;roll:RollReceipt|null;sessionId:string;sequence:number};
 function dbOpen() {
@@ -37,10 +38,13 @@ export async function preparePlayerTurn(sessionId:string,action:string) {
    if(pending.action!==action)throw Error("Finish the pending turn before starting another");
    return pending;
   }
+  const worldStore=new SqlitePlaythroughStore(databasePath());
+  let ordinaryDestination:string|null=null;
+  try{const world=worldStore.getAdventure(game.session.adventureId,game.session.adventureVersion);if(world)ordinaryDestination=ordinaryExitMove(action,game.location,world.locations);}finally{worldStore.close();}
   const history=game.turns.map(t=>({playerAction:t.playerAction,narration:t.narration,rejectedProposal:t.rejectedProposal}));
-  const assessment=await museClient().respond({phase:"assess",location:game.location,unlockedDoors:game.session.unlockedDoors,playerAction:action,history});
-  const fallback=checkForAction(action);
-  const check=assessment.proposedCheck ?? (fallback ? {kind:fallback.request.kind,dc:fallback.request.dc ?? 12,modifier:0,mode:"normal" as const,reason:fallback.label} : null);
+  const assessment=ordinaryDestination ? {narration:"Travel to a connected location.",proposedCheck:null} : await museClient().respond({phase:"assess",location:game.location,unlockedDoors:game.session.unlockedDoors,playerAction:action,history});
+  const fallback=ordinaryDestination ? null : checkForAction(action);
+  const check=ordinaryDestination ? null : assessment.proposedCheck ?? (fallback ? {kind:fallback.request.kind,dc:fallback.request.dc ?? 12,modifier:0,mode:"normal" as const,reason:fallback.label} : null);
   const roll=check?resolveRoll({kind:check.kind,dc:check.dc,modifier:0,mode:check.mode??"normal"}):null;
   const pending:Pending={id:randomUUID(),sessionId,action,stakes:check?.reason || assessment.narration,roll,sequence:game.turns.length+1};
   db.prepare("INSERT OR IGNORE INTO pending_player_turns(session_id,body) VALUES(?,?)").run(sessionId,JSON.stringify(pending));
@@ -77,7 +81,8 @@ export async function resolvePlayerTurn(sessionId:string,pendingId:string) {
    const engine=new Engine();engine.createAdventure(world);engine.restorePlaythrough(saved.session,saved.events,saved.turns);
    const context=engine.getContext(sessionId);
    const history=saved.turns.map(t=>({playerAction:t.playerAction,narration:t.narration,rejectedProposal:t.rejectedProposal}));
-   const dm=await museClient().respond({phase:"resolve",location:context.location,unlockedDoors:context.session.unlockedDoors,playerAction:pending.action,history,verifiedRoll:pending.roll});
+   const ordinaryDestination=ordinaryExitMove(pending.action,context.location,world.locations);
+   const dm=ordinaryDestination ? {narration:"You travel to the connected location.",proposedAction:{type:"move" as const,locationId:ordinaryDestination}} : await museClient().respond({phase:"resolve",location:context.location,unlockedDoors:context.session.unlockedDoors,playerAction:pending.action,history,verifiedRoll:pending.roll});
    let event=null;let rejected=false;let narration=dm.narration;
    const directExit=context.location.exits.find(exit=>{
     const destination=world.locations.find(l=>l.id===exit);
@@ -85,7 +90,7 @@ export async function resolvePlayerTurn(sessionId:string,pendingId:string) {
     return destination && (text.includes(destination.name.toLowerCase()) || text.includes(destination.id.toLowerCase()));
    });
    const movementIntent=/\b(go|move|walk|travel|enter|head|proceed)\b/i.test(pending.action);
-   const proposal=movementIntent && directExit ? {type:"move" as const,locationId:directExit} : dm.proposedAction;
+   const proposal=ordinaryDestination ? {type:"move" as const,locationId:ordinaryDestination} : movementIntent && directExit ? {type:"move" as const,locationId:directExit} : dm.proposedAction;
    if(proposal) {
     if(pending.roll?.success===false && !movementIntent) {rejected=true;narration="The check failed. "+narration;}
     else try {event=engine.applyAction(sessionId,"human-player",proposal); }
