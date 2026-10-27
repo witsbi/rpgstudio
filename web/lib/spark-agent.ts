@@ -23,7 +23,7 @@ export async function runSparkPlayer(input: {
   for (let step = 0; step < 3; step++) {
     const response = await fetch(`${(process.env.META_API_BASE_URL || "https://api.meta.ai/v1").replace(/\/$/, "")}/chat/completions`, {
       method: "POST", headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ model: process.env.META_MODEL || "muse-spark-1.3", messages, tools, tool_choice: step === 0 ? "required" : "auto" })
+      body: JSON.stringify({ model: process.env.META_MODEL || "muse-spark-1.3", messages, tools, tool_choice: "auto" })
     });
     if (!response.ok) {
       const details = (await response.text()).slice(0, 1200);
