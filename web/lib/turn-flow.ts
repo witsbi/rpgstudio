@@ -18,6 +18,12 @@ function museClient() {
  if(!key)throw Error("META_API_KEY is not configured");
  return new MetaMuseClient(key,process.env.META_API_BASE_URL || "https://api.meta.ai/v1",process.env.META_MODEL || "muse-spark-1.3");
 }
+export function readPendingTurn(sessionId:string) {
+ const game=readGame(sessionId);if(!game)throw Error("Unknown player session");
+ const db=dbOpen();
+ try{const row=db.prepare("SELECT body FROM pending_player_turns WHERE session_id=?").get(sessionId) as {body:string}|undefined;return row?JSON.parse(row.body) as Pending:null;}
+ finally{db.close();}
+}
 export async function preparePlayerTurn(sessionId:string,action:string) {
  if(typeof action!=="string"||!action.trim()||action.length>2000)throw Error("Invalid player action");
  const game=readGame(sessionId);
@@ -59,6 +65,10 @@ export async function resolvePlayerTurn(sessionId:string,pendingId:string) {
   try {
    const saved=store.loadSession(sessionId);
    if(!saved || saved.session.roles.player!=="human-player")throw Error("Invalid session");
+   if(saved.turns.length===pending.sequence && saved.turns.at(-1)?.playerAction===pending.action){
+    db.prepare("DELETE FROM pending_player_turns WHERE session_id=? AND body=?").run(sessionId,row.body);
+    return readGame(sessionId);
+   }
    if(saved.turns.length!==pending.sequence-1)throw Error("Session changed during pending turn");
    const world=store.getAdventure(saved.session.adventureId,saved.session.adventureVersion);
    if(!world)throw Error("Adventure missing");
