@@ -42,7 +42,7 @@ export async function dmTurn(id: string, scene: string) {
     const availableExits = context.location.exits.map(exitId => ({ id: exitId, name: world.locations.find(l => l.id === exitId)?.name || exitId }));
     const turnsSinceMove = (() => { const turns = engine.getTurns(id); const lastMove = turns.findLastIndex(t => t.event?.action && JSON.parse(t.event.action).type === "move"); return turns.length - lastMove - 1; })();
     const result = await runSparkPlayer({ engine, sessionId: id, scene, key, history, availableExits, turnsSinceMove });
-    engine.recordTurn(id, "meta-muse-player", scene, result.narration, result.event, result.rejected);
+    engine.recordTurn(id, "meta-muse-player", scene, result.narration, result.event, result.rejected, result.roll);
     store.commitSession(engine, id);
     return readDmGame(id);
   } finally { store.close(); }
