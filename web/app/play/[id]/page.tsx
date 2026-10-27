@@ -2,7 +2,7 @@
 import Link from "next/link";
 import LocationArt from "../../components/location-art";
 import { use, useEffect, useState } from "react";
-type Game = { session: { adventureId: string; adventureVersion: string }; session: { id: string }; world: { title: string }; location: { id: string; name: string; description: string; exits: string[] }; turns: { id: string; playerAction: string; narration: string; rejectedProposal: boolean }[] };
+type Game = { session: { id: string; adventureId: string; adventureVersion: string }; world: { title: string }; location: { id: string; name: string; description: string; exits: string[] }; turns: { id: string; playerAction: string; narration: string; rejectedProposal: boolean }[] };
 export default function Play({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const [game, setGame] = useState<Game | null>(null);
