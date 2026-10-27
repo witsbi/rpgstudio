@@ -16,7 +16,7 @@ export default function LocationArt({ worldId, version, locationId }: { worldId:
     const response=await fetch(endpoint,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({version,locationId})});
     const result=await response.json();
     if(!response.ok)throw Error(result.error||"Image generation failed");
-    if(!cancelled){setUrl(result.url+"?v="+Date.now());setStatus("");}
+    if(!cancelled){setUrl(result.url+"&v="+Date.now());setStatus("");}
    }catch(e){if(!cancelled)setStatus(e instanceof Error?e.message:"Illustration unavailable");}
   }
   void load();return()=>{cancelled=true;};
