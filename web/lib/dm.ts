@@ -1,5 +1,5 @@
 import { DatabaseSync } from "node:sqlite";
-import { listPrivateNotes, savePrivateNote, revealPrivateNote, auditPlayerPrompt } from "./dm-private";
+import { listPrivateNotes, savePrivateNote, auditPlayerPrompt } from "./dm-private";
 import { Engine } from "../../src/engine.ts";
 import { SqlitePlaythroughStore } from "../../src/storage.ts";
 import { databasePath } from "./studio";
@@ -54,13 +54,13 @@ export async function dmTurn(id: string, scene: string) {
   } finally { store.close(); }
 }
 
-export function changePrivateNote(id:string,operation:"save"|"reveal",noteId:string,text?:string) {
+export function changePrivateNote(id:string,operation:"save",noteId:string,text?:string) {
  const db=new DatabaseSync(databasePath());
  try {
   const row=db.prepare("SELECT state FROM sessions WHERE id=?").get(id) as {state:string}|undefined;
   if(!row || (JSON.parse(row.state) as {roles:{dm:string}}).roles.dm!=="human-dm")throw Error("Unknown DM session");
   if(operation==="save")savePrivateNote(db,id,noteId,text??"");
-  else revealPrivateNote(db,id,noteId);
+
   return listPrivateNotes(db,id);
  } finally {db.close();}
 }
