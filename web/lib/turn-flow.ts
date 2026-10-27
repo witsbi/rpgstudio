@@ -40,7 +40,7 @@ export async function preparePlayerTurn(sessionId:string,action:string) {
   const history=game.turns.map(t=>({playerAction:t.playerAction,narration:t.narration,rejectedProposal:t.rejectedProposal}));
   const assessment=await museClient().respond({phase:"assess",location:game.location,unlockedDoors:game.session.unlockedDoors,playerAction:action,history});
   const fallback=checkForAction(action);
-  const check=assessment.proposedCheck ?? (fallback ? {...fallback.request,reason:fallback.label} : null);
+  const check=assessment.proposedCheck ?? (fallback ? {kind:fallback.request.kind,dc:fallback.request.dc ?? 12,modifier:0,mode:"normal" as const,reason:fallback.label} : null);
   const roll=check?resolveRoll({kind:check.kind,dc:check.dc,modifier:0,mode:check.mode??"normal"}):null;
   const pending:Pending={id:randomUUID(),sessionId,action,stakes:check?.reason || assessment.narration,roll,sequence:game.turns.length+1};
   db.prepare("INSERT OR IGNORE INTO pending_player_turns(session_id,body) VALUES(?,?)").run(sessionId,JSON.stringify(pending));
@@ -85,7 +85,7 @@ export async function resolvePlayerTurn(sessionId:string,pendingId:string) {
     return destination && (text.includes(destination.name.toLowerCase()) || text.includes(destination.id.toLowerCase()));
    });
    const movementIntent=/\b(go|move|walk|travel|enter|head|proceed)\b/i.test(pending.action);
-   const proposal=dm.proposedAction ?? (movementIntent && directExit ? {type:"move" as const,locationId:directExit} : null);
+   const proposal=movementIntent && directExit ? {type:"move" as const,locationId:directExit} : dm.proposedAction;
    if(proposal) {
     if(pending.roll?.success===false && !movementIntent) {rejected=true;narration="The check failed. "+narration;}
     else try {event=engine.applyAction(sessionId,"human-player",proposal); }
