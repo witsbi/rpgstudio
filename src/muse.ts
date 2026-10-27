@@ -36,7 +36,7 @@ export class MetaMuseClient implements MuseClient {
     if (typeof turn.narration !== "string" || !turn.narration.trim() || turn.narration.length > 10000) throw new Error("Invalid DM narration");
     const check = turn.proposedCheck ?? null;
     if (check !== null && (typeof check !== "object" || !["ability","attack","save"].includes((check as any).kind) || !Number.isInteger((check as any).dc) || (check as any).dc < 5 || (check as any).dc > 30 || (check as any).modifier !== 0 || typeof (check as any).reason !== "string" || (check as any).reason.length > 250 || !["normal","advantage","disadvantage",undefined].includes((check as any).mode))) throw new Error("Invalid proposed check");
-    const action = turn.proposedAction;
+    const action = turn.proposedAction ?? null;
     if (action !== null && (typeof action !== "object" || !action || !(
       ((action as Record<string, unknown>).type === "move" && typeof (action as Record<string, unknown>).locationId === "string") ||
       ((action as Record<string, unknown>).type === "unlock" && typeof (action as Record<string, unknown>).doorId === "string")
