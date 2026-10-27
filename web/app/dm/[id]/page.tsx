@@ -2,7 +2,7 @@
 import Link from "next/link";
 import LocationArt from "../../components/location-art";
 import { use, useEffect, useState } from "react";
-type Game = { session: { adventureId: string; adventureVersion: string }; world: { title: string }; location: { id: string; name: string; description: string; exits: string[] }; turns: { id: string; playerAction: string; narration: string; rejectedProposal: boolean }[] };
+type Game = { session: { adventureId: string; adventureVersion: string }; world: { title: string }; location: { id: string; name: string; description: string; exits: string[] }; turns: { id: string; playerAction: string; narration: string; rejectedProposal: boolean; roll?: {id:string;kind:string;total:number;dc:number|null;success:boolean|null;dice:number[]} | null }[] };
 export default function DmPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const [game, setGame] = useState<Game | null>(null);
@@ -22,7 +22,7 @@ export default function DmPage({ params }: { params: Promise<{ id: string }> }) 
   return <main className="shell"><header className="top"><Link className="logo" href="/">✦ RPG <span>STUDIO</span></Link><Link href="/marketplace">Marketplace →</Link></header>
     <section className="hero compact"><p className="eyebrow">HUMAN DUNGEON MASTER · AI PLAYER</p><h1>{game?.world.title || "Loading adventure…"}</h1><p className="lead">You guide the story. The AI plays a character. Bookmark this session to resume.</p></section>
     {game && <section className="editor"><article className="location"><p className="eyebrow">CURRENT LOCATION</p><h2>{game.location.name}</h2><LocationArt worldId={game.session.adventureId} version={game.session.adventureVersion} locationId={game.location.id} /><p>{game.location.description}</p><small>Exits: {game.location.exits.join(", ") || "none"}</small></article>
-      <div className="transcript">{game.turns.length === 0 && <p>Set the opening scene for your AI Player.</p>}{game.turns.map(t => <article className="turn" key={t.id}><p><strong>You (DM):</strong> {t.playerAction}</p><p><strong>AI Player:</strong> {t.narration}</p>{t.rejectedProposal && <small>The engine rejected a proposed move.</small>}</article>)}</div>
+      <div className="transcript">{game.turns.length === 0 && <p>Set the opening scene for your AI Player.</p>}{game.turns.map(t => <article className="turn" key={t.id}><p><strong>You (DM):</strong> {t.playerAction}</p>{t.roll && <div><strong>Engine roll: {t.roll.kind} · {t.roll.dice.join(", ")} = {t.roll.total} vs DC {t.roll.dc} · {t.roll.success ? "SUCCESS" : "FAILURE"}</strong><small> · Receipt {t.roll.id.slice(0,8)}</small></div>}<p><strong>AI Player:</strong> {t.narration}</p>{t.rejectedProposal && <small>The engine rejected a proposed move.</small>}</article>)}</div>
       <form onSubmit={submit}><label htmlFor="scene">Describe the scene or ask the player what they do</label><textarea id="scene" rows={4} maxLength={2000} value={scene} onChange={e => setScene(e.target.value)} disabled={busy}/><button disabled={busy || !scene.trim()}>{busy ? "AI Player is thinking…" : "Continue story"}</button></form>
     </section>}
     {error && <p role="alert" className="error">{error}</p>}

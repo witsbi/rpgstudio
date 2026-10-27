@@ -1,4 +1,5 @@
 import type { Engine, Location, GameEvent } from "../../src/engine.ts";
+import { resolveRoll, type RollReceipt } from "../../src/dice.ts";
 type ToolCall = { id: string; type: "function"; function: { name: string; arguments: string } };
 type Message = { role: string; content: string | null; tool_calls?: ToolCall[]; tool_call_id?: string };
 const tools = [
@@ -10,7 +11,7 @@ export async function runSparkPlayer(input: {
   engine: Engine; sessionId: string; scene: string; key: string;
   history: { dmScene: string; aiResponse: string }[];
   availableExits: { id: string; name: string }[]; turnsSinceMove: number;
-}): Promise<{ narration: string; event: GameEvent | null; rejected: boolean }> {
+}): Promise<{ narration: string; event: GameEvent | null; rejected: boolean; roll: RollReceipt | null }> {
   const { engine, sessionId, scene, key, history, availableExits, turnsSinceMove } = input;
   const location: Location = engine.getContext(sessionId).location;
   const messages: Message[] = [
@@ -19,6 +20,7 @@ export async function runSparkPlayer(input: {
   ];
   let event: GameEvent | null = null;
   let rejected = false;
+  let roll: RollReceipt | null = null;
   let attempted = "";
   for (let step = 0; step < 3; step++) {
     const response = await fetch(`${(process.env.META_API_BASE_URL || "https://api.meta.ai/v1").replace(/\/$/, "")}/chat/completions`, {
@@ -37,7 +39,7 @@ export async function runSparkPlayer(input: {
     if (!message.tool_calls?.length) {
       const narration = (message.content || "").trim() || attempted;
       if (!narration) throw new Error("AI Player did not declare an action");
-      return { narration, event, rejected };
+      return { narration, event, rejected, roll };
     }
     for (const call of message.tool_calls) {
       let observation: string;
@@ -46,9 +48,27 @@ export async function runSparkPlayer(input: {
       catch { args = {}; }
       if (call.function.name === "move" && typeof args.locationId === "string") {
         try {
-          event = engine.applyAction(sessionId, "meta-muse-player", { type: "move", locationId: args.locationId });
-          attempted = `I attempt to travel to ${availableExits.find(x => x.id === args.locationId)?.name || args.locationId}.`;
-          observation = JSON.stringify({ accepted: true, outcome: event.outcome, location: engine.getContext(sessionId).location.name });
+          const destination = availableExits.find(x => x.id === args.locationId);
+          if (!destination) throw Error("Exit unavailable");
+          // Prototype hazard policy: terrain explicitly described as hazardous, including stairs.
+          // The human DM remains authoritative over the scene; this is not a general rules engine.
+          const hazardous = /\b(stairs?|staircase|slippery|slick|treacherous|unstable|hazard|dangerous|crumbling|narrow ledge)\b/i.test(
+            [location.name, location.description, scene, destination.name].join(" ")
+          );
+          attempted = `I attempt to travel to ${destination.name}.`;
+          if (hazardous) {
+            roll = resolveRoll({kind:"ability",dc:12,modifier:0,mode:"normal"});
+            if (!roll.success) {
+              rejected = true;
+              observation = JSON.stringify({accepted:false,reason:"Hazard check failed; location unchanged",roll:{total:roll.total,dc:roll.dc,success:false}});
+            } else {
+              event = engine.applyAction(sessionId,"meta-muse-player",{type:"move",locationId:args.locationId});
+              observation = JSON.stringify({accepted:true,outcome:event.outcome,roll:{total:roll.total,dc:roll.dc,success:true},location:engine.getContext(sessionId).location.name});
+            }
+          } else {
+            event = engine.applyAction(sessionId,"meta-muse-player",{type:"move",locationId:args.locationId});
+            observation = JSON.stringify({accepted:true,outcome:event.outcome,location:engine.getContext(sessionId).location.name});
+          }
         } catch { rejected = true; attempted = `I try to travel toward ${args.locationId}.`; observation = JSON.stringify({ accepted: false, reason: "Exit unavailable; world state unchanged" }); }
       } else if (call.function.name === "inspect" && typeof args.target === "string") {
         attempted = `I inspect ${args.target.slice(0, 160)}.`;
@@ -60,5 +80,5 @@ export async function runSparkPlayer(input: {
       messages.push({ role: "tool", tool_call_id: call.id, content: observation });
     }
   }
-  return { narration: attempted || "I pause and reconsider my next action.", event, rejected };
+  return { narration: attempted || "I pause and reconsider my next action.", event, rejected, roll };
 }
