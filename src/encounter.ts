@@ -1,5 +1,6 @@
 import { Engine, type GameEvent } from "./engine.ts";
 import type { MuseClient } from "./muse.ts";
+import { rollForAction } from "./action-check.ts";
 
 export type EncounterResult = { narration: string; event: GameEvent | null; rejectedProposal: boolean };
 export async function playTurn(engine: Engine, muse: MuseClient, sessionId: string, actorId: string, playerAction: string): Promise<EncounterResult> {
@@ -7,9 +8,11 @@ export async function playTurn(engine: Engine, muse: MuseClient, sessionId: stri
   if (actorId !== context.session.roles.player) throw new Error("Actor is not the assigned player");
   if (!playerAction.trim() || playerAction.length > 2000) throw new Error("Invalid player action");
   const history = engine.getTurns(sessionId).map(t => ({ playerAction: t.playerAction, narration: t.narration, rejectedProposal: t.rejectedProposal }));
-  const dm = await muse.respond({ location: context.location, unlockedDoors: context.session.unlockedDoors, playerAction, history });
+  const roll = rollForAction(playerAction);
+  const dm = await muse.respond({ location: context.location, unlockedDoors: context.session.unlockedDoors, playerAction, history, verifiedRoll: roll?.receipt ?? null });
   let result: EncounterResult;
   if (!dm.proposedAction) result = { narration: dm.narration, event: null, rejectedProposal: false };
+  else if (roll?.receipt.success === false && dm.proposedAction.type === "move") result = { narration: "The check failed; movement was not permitted by the engine.", event: null, rejectedProposal: true };
   else {
     try {
       const event = engine.applyAction(sessionId, actorId, dm.proposedAction);
@@ -18,6 +21,6 @@ export async function playTurn(engine: Engine, muse: MuseClient, sessionId: stri
       result = { narration: "The attempted action cannot be completed in the current world state. Try something else.", event: null, rejectedProposal: true };
     }
   }
-  engine.recordTurn(sessionId, actorId, playerAction, result.narration, result.event, result.rejectedProposal);
+  engine.recordTurn(sessionId, actorId, playerAction, result.narration, result.event, result.rejectedProposal, roll?.receipt ?? null);
   return result;
 }
