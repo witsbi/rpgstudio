@@ -25,7 +25,11 @@ export async function runSparkPlayer(input: {
       method: "POST", headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
       body: JSON.stringify({ model: process.env.META_MODEL || "muse-spark-1.3", messages, tools, tool_choice: step === 0 ? "required" : "auto" })
     });
-    if (!response.ok) throw new Error(`Muse returned HTTP ${response.status}`);
+    if (!response.ok) {
+      const details = (await response.text()).slice(0, 1200);
+      console.error("Muse Spark API error:", response.status, details);
+      throw new Error(`Muse Spark HTTP ${response.status}: ${details.replace(/Bearer\\s+[^\\s"]+/gi, "Bearer [redacted]")}`);
+    }
     const body = await response.json() as { choices?: { message?: Message }[] };
     const message = body.choices?.[0]?.message;
     if (!message) throw new Error("Muse returned no message");
