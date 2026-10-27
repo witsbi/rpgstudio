@@ -1,3 +1,5 @@
+import { DatabaseSync } from "node:sqlite";
+import { listPrivateNotes, savePrivateNote, revealPrivateNote, auditPlayerPrompt } from "./dm-private";
 import { Engine } from "../../src/engine.ts";
 import { SqlitePlaythroughStore } from "../../src/storage.ts";
 import { databasePath } from "./studio";
@@ -22,7 +24,9 @@ export function readDmGame(id: string) {
     if (!world) throw new Error("Adventure missing");
     const location = world.locations.find(l => l.id === saved.session.currentLocationId);
     if (!location) throw new Error("Location missing");
-    return { session: saved.session, world: { title: world.title }, location, turns: saved.turns };
+    const privateDb = new DatabaseSync(databasePath());
+    try { return { session: saved.session, world: { title: world.title }, location, turns: saved.turns, privateNotes: listPrivateNotes(privateDb,id) }; }
+    finally { privateDb.close(); }
   } finally { store.close(); }
 }
 export async function dmTurn(id: string, scene: string) {
@@ -41,9 +45,22 @@ export async function dmTurn(id: string, scene: string) {
     const history = engine.getTurns(id).slice(-12).map(t => ({ dmScene: t.playerAction, aiResponse: t.narration }));
     const availableExits = context.location.exits.map(exitId => ({ id: exitId, name: world.locations.find(l => l.id === exitId)?.name || exitId }));
     const turnsSinceMove = (() => { const turns = engine.getTurns(id); const lastMove = turns.findLastIndex(t => t.event?.action && JSON.parse(t.event.action).type === "move"); return turns.length - lastMove - 1; })();
+    const auditDb = new DatabaseSync(databasePath());
+    try { auditPlayerPrompt(auditDb,id); } finally { auditDb.close(); }
     const result = await runSparkPlayer({ engine, sessionId: id, scene, key, history, availableExits, turnsSinceMove });
     engine.recordTurn(id, "meta-muse-player", scene, result.narration, result.event, result.rejected, result.roll);
     store.commitSession(engine, id);
     return readDmGame(id);
   } finally { store.close(); }
+}
+
+export function changePrivateNote(id:string,operation:"save"|"reveal",noteId:string,text?:string) {
+ const db=new DatabaseSync(databasePath());
+ try {
+  const row=db.prepare("SELECT state FROM sessions WHERE id=?").get(id) as {state:string}|undefined;
+  if(!row || (JSON.parse(row.state) as {roles:{dm:string}}).roles.dm!=="human-dm")throw Error("Unknown DM session");
+  if(operation==="save")savePrivateNote(db,id,noteId,text??"");
+  else revealPrivateNote(db,id,noteId);
+  return listPrivateNotes(db,id);
+ } finally {db.close();}
 }
