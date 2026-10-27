@@ -12,7 +12,7 @@ export default function Play({ params }: { params: Promise<{ id: string }> }) {
   const [pending,setPending]=useState<{id:string;action:string;stakes:string;roll:Game["turns"][number]["roll"]}|null>(null);
   const [revealing,setRevealing]=useState(false);
   useEffect(() => {
-    fetch(`/api/sessions/${encodeURIComponent(id)}`).then(async r => { const data = await r.json(); if (!r.ok) throw new Error(data.error); setGame(data); }).catch(e => setError(String(e)));
+    fetch(`/api/sessions/${encodeURIComponent(id)}`).then(async r => { const data = await r.json(); if (!r.ok) throw new Error(data.error); setGame(data); fetch(`/api/turn-flow?sessionId=${encodeURIComponent(id)}`).then(r=>r.json()).then(x=>{if(x.pending)setPending(x.pending);}).catch(()=>{}); }).catch(e => setError(String(e)));
   }, [id]);
   async function requestFlow(payload:object) {
     const response=await fetch("/api/turn-flow",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({sessionId:id,...payload})});
