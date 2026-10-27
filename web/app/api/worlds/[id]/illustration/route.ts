@@ -31,7 +31,11 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       method: "POST", headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
       body: JSON.stringify({ model: "muse-image-1.0", n: 1, output_format: "webp", response_format: "b64_json", prompt: `Cinematic fantasy RPG environment concept art, no text, no labels, no people. World: ${world.title}. Location: ${location.name}. Description: ${location.description}. Wide atmospheric establishing shot, visually coherent architecture, evocative lighting.` })
     });
-    if (!response.ok) throw new Error(`Muse Image returned HTTP ${response.status}`);
+    if (!response.ok) {
+      const details = await response.text();
+      console.error("Muse Image API error:", response.status, details);
+      throw new Error(`Muse Image returned HTTP ${response.status}`);
+    }
     const result = await response.json() as { data?: { b64_json?: string }[] };
     const b64 = result.data?.[0]?.b64_json;
     if (!b64) throw new Error("No image returned");
