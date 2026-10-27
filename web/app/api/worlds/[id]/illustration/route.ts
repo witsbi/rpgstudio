@@ -34,7 +34,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     if (!response.ok) {
       const details = await response.text();
       console.error("Muse Image API error:", response.status, details);
-      throw new Error(`Muse Image returned HTTP ${response.status}`);
+      const safeDetails = details.slice(0, 1200).replace(/Bearer\\s+[^\\s"]+/gi, "Bearer [redacted]");
+      throw new Error(`Muse Image HTTP ${response.status}: ${safeDetails}`);
     }
     const result = await response.json() as { data?: { b64_json?: string }[] };
     const b64 = result.data?.[0]?.b64_json;
