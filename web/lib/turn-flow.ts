@@ -8,11 +8,13 @@ import { databasePath } from "./studio";
 import { readGame } from "./play";
 import { checkForAction } from "../../src/action-check.ts";
 import { parsePlayerIntent } from "../../src/intent.ts";
+import { findCompletedTurnId, initCompletedTurnReceipts, rememberCompletedTurn } from "./turn-receipts";
 
 type Pending = {id:string;action:string;stakes:string;roll:RollReceipt|null;sessionId:string;sequence:number;destinationId?:string|null};
 function dbOpen() {
  const db=new DatabaseSync(databasePath());
- db.exec("PRAGMA busy_timeout=5000; CREATE TABLE IF NOT EXISTS pending_player_turns (session_id TEXT PRIMARY KEY, body TEXT NOT NULL, FOREIGN KEY(session_id) REFERENCES sessions(id)); CREATE TABLE IF NOT EXISTS completed_player_turns (session_id TEXT NOT NULL, pending_id TEXT NOT NULL, turn_id TEXT NOT NULL, completed_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, PRIMARY KEY(session_id,pending_id));");
+ db.exec("PRAGMA busy_timeout=5000; CREATE TABLE IF NOT EXISTS pending_player_turns (session_id TEXT PRIMARY KEY, body TEXT NOT NULL, FOREIGN KEY(session_id) REFERENCES sessions(id));");
+ initCompletedTurnReceipts(db);
  return db;
 }
 function museClient() {
@@ -59,11 +61,11 @@ export async function resolvePlayerTurn(sessionId:string,pendingId:string) {
  try {
   const row=db.prepare("SELECT body FROM pending_player_turns WHERE session_id=?").get(sessionId) as {body:string}|undefined;
   if(!row) {
-   const completed=db.prepare("SELECT turn_id FROM completed_player_turns WHERE session_id=? AND pending_id=?").get(sessionId,pendingId) as {turn_id:string}|undefined;
+   const completedTurnId=findCompletedTurnId(db,sessionId,pendingId);
    const game=readGame(sessionId);
    if(!game)throw Error("Session missing");
    // A retry after the pending row was cleared resolves to the original committed turn.
-   if(completed)return {...game,resolvedTurnId:completed.turn_id};
+   if(completedTurnId)return {...game,resolvedTurnId:completedTurnId};
    // Backward compatibility for old clients that retry using the committed turn ID.
    if(game.turns.some(t=>t.id===pendingId))return game;
    throw Error("No pending turn; refresh the session");
@@ -79,7 +81,7 @@ export async function resolvePlayerTurn(sessionId:string,pendingId:string) {
     // Recover a crash after the session commit but before the pending row was cleared.
     db.exec("BEGIN IMMEDIATE");
     try {
-     db.prepare("INSERT OR IGNORE INTO completed_player_turns(session_id,pending_id,turn_id) VALUES(?,?,?)").run(sessionId,pending.id,committedTurn.id);
+     rememberCompletedTurn(db,sessionId,pending.id,committedTurn.id);
      db.prepare("DELETE FROM pending_player_turns WHERE session_id=? AND body=?").run(sessionId,row.body);
      db.exec("COMMIT");
     } catch(error) { db.exec("ROLLBACK"); throw error; }
@@ -107,7 +109,7 @@ export async function resolvePlayerTurn(sessionId:string,pendingId:string) {
    store.commitSession(engine,sessionId);
    db.exec("BEGIN IMMEDIATE");
    try {
-    db.prepare("INSERT OR IGNORE INTO completed_player_turns(session_id,pending_id,turn_id) VALUES(?,?,?)").run(sessionId,pending.id,record.id);
+    rememberCompletedTurn(db,sessionId,pending.id,record.id);
     db.prepare("DELETE FROM pending_player_turns WHERE session_id=? AND body=?").run(sessionId,row.body);
     db.exec("COMMIT");
    } catch(error) { db.exec("ROLLBACK"); throw error; }
