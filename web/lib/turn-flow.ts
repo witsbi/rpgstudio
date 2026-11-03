@@ -12,7 +12,7 @@ import { parsePlayerIntent } from "../../src/intent.ts";
 type Pending = {id:string;action:string;stakes:string;roll:RollReceipt|null;sessionId:string;sequence:number;destinationId?:string|null};
 function dbOpen() {
  const db=new DatabaseSync(databasePath());
- db.exec("PRAGMA busy_timeout=5000; CREATE TABLE IF NOT EXISTS pending_player_turns (session_id TEXT PRIMARY KEY, body TEXT NOT NULL, FOREIGN KEY(session_id) REFERENCES sessions(id));");
+ db.exec("PRAGMA busy_timeout=5000; CREATE TABLE IF NOT EXISTS pending_player_turns (session_id TEXT PRIMARY KEY, body TEXT NOT NULL, FOREIGN KEY(session_id) REFERENCES sessions(id)); CREATE TABLE IF NOT EXISTS completed_player_turns (session_id TEXT NOT NULL, pending_id TEXT NOT NULL, turn_id TEXT NOT NULL, completed_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, PRIMARY KEY(session_id,pending_id));");
  return db;
 }
 function museClient() {
@@ -59,9 +59,12 @@ export async function resolvePlayerTurn(sessionId:string,pendingId:string) {
  try {
   const row=db.prepare("SELECT body FROM pending_player_turns WHERE session_id=?").get(sessionId) as {body:string}|undefined;
   if(!row) {
+   const completed=db.prepare("SELECT turn_id FROM completed_player_turns WHERE session_id=? AND pending_id=?").get(sessionId,pendingId) as {turn_id:string}|undefined;
    const game=readGame(sessionId);
    if(!game)throw Error("Session missing");
-   // A retried resolution can only read the already committed turn.
+   // A retry after the pending row was cleared resolves to the original committed turn.
+   if(completed)return {...game,resolvedTurnId:completed.turn_id};
+   // Backward compatibility for old clients that retry using the committed turn ID.
    if(game.turns.some(t=>t.id===pendingId))return game;
    throw Error("No pending turn; refresh the session");
   }
@@ -72,8 +75,15 @@ export async function resolvePlayerTurn(sessionId:string,pendingId:string) {
    const saved=store.loadSession(sessionId);
    if(!saved || saved.session.roles.player!=="human-player")throw Error("Invalid session");
    if(saved.turns.length===pending.sequence && saved.turns.at(-1)?.playerAction===pending.action){
-    db.prepare("DELETE FROM pending_player_turns WHERE session_id=? AND body=?").run(sessionId,row.body);
-    return readGame(sessionId);
+    const committedTurn=saved.turns.at(-1)!;
+    // Recover a crash after the session commit but before the pending row was cleared.
+    db.exec("BEGIN IMMEDIATE");
+    try {
+     db.prepare("INSERT OR IGNORE INTO completed_player_turns(session_id,pending_id,turn_id) VALUES(?,?,?)").run(sessionId,pending.id,committedTurn.id);
+     db.prepare("DELETE FROM pending_player_turns WHERE session_id=? AND body=?").run(sessionId,row.body);
+     db.exec("COMMIT");
+    } catch(error) { db.exec("ROLLBACK"); throw error; }
+    return {...readGame(sessionId),resolvedTurnId:committedTurn.id};
    }
    if(saved.turns.length!==pending.sequence-1)throw Error("Session changed during pending turn");
    const world=store.getAdventure(saved.session.adventureId,saved.session.adventureVersion);
@@ -92,10 +102,15 @@ export async function resolvePlayerTurn(sessionId:string,pendingId:string) {
     catch {rejected=true;narration="The engine rejected the proposed world change. "+narration;}
    }
    const record=engine.recordTurn(sessionId,"human-player",pending.action,narration,event,rejected,pending.roll);
-   // Commit turn and clear pending in one SQLite transaction boundary is not provided by the existing store.
-   // Preserve pending on failed commit; retries can recover after success by checking sequence.
+   // Session persistence and the retry receipt use separate connections. If a crash occurs
+   // between them, the sequence check above reconstructs this receipt on the next retry.
    store.commitSession(engine,sessionId);
-   db.prepare("DELETE FROM pending_player_turns WHERE session_id=? AND body=?").run(sessionId,row.body);
+   db.exec("BEGIN IMMEDIATE");
+   try {
+    db.prepare("INSERT OR IGNORE INTO completed_player_turns(session_id,pending_id,turn_id) VALUES(?,?,?)").run(sessionId,pending.id,record.id);
+    db.prepare("DELETE FROM pending_player_turns WHERE session_id=? AND body=?").run(sessionId,row.body);
+    db.exec("COMMIT");
+   } catch(error) { db.exec("ROLLBACK"); throw error; }
    const updated=readGame(sessionId);
    if(!updated)throw Error("Session missing");
    return {...updated,resolvedTurnId:record.id};
